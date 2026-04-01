@@ -15,6 +15,19 @@ export class TenantService {
     private readonly encrypter: Encrypter
   ) {}
 
+  async getTenant(code: string) {
+    return await this.masterDataSource.getRepository(Tenant).findOne({
+      where: { tenantCode: code }
+    });
+  }
+
+  async getTenantWithCredentials(code: string) {
+    return await this.masterDataSource.getRepository(Tenant).findOne({
+      where: { tenantCode: code },
+      relations: ['dbCredentials']
+    });
+  }
+
   async getAllTenants() {
     return await this.masterDataSource.getRepository(Tenant).find();
   }

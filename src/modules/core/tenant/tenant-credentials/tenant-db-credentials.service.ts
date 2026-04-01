@@ -48,7 +48,13 @@ export class TenantDbCredentialService {
         }
       }
     });
-    return tenant?.dbCredentials;
+    return {
+      host: tenant?.dbCredentials.host,
+      port: tenant?.dbCredentials.port,
+      database: tenant?.dbCredentials.database,
+      username: tenant?.dbCredentials.username,
+      password: tenant?.dbCredentials.password
+    };
   }
 
   encryptDbCredentials(createTenantDbCredentialsDto: DataSourceCredentials) {
