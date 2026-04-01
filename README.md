@@ -1,85 +1,61 @@
-## Description
+# Multi-Tenant SaaS Boilerplate
 
-A multi-tenant saas project that uses durable providers to make using tenant datasource, loggers without writing too much code.
+> NestJS · TypeORM · MySQL — isolated per-tenant databases with zero per-request overhead.
 
-## Project setup
+## How it works
 
-```bash
-$ npm install
+Each HTTP request carries a tenant identifier. On the first request for a given tenant, a datasource is created and **cached by the durable provider** — subsequent requests reuse it instantly, with no reconnect cost and no request-scoped DI overhead.
+
+```
+Request → Durable Provider (cached datasource) → Tenant MySQL DB
 ```
 
-# to generate an encryption key and Jwt secret you can run this command:
+## Key design decisions
+
+**Durable default-scope providers** — Unlike request-scoped providers, these are initialized once per tenant and reused across all requests. This gives you per-tenant isolation without sacrificing singleton-level performance.
+
+**Encrypted tenant settings** — Per-tenant environment variables are stored encrypted in the master database using AES-256. Each tenant's secrets are decrypted at runtime, never stored in plaintext.
+
+**Auto-provisioning via API** — A single call to `POST saas/pilot` creates the tenant database and runs its migrations. No manual schema setup needed.
+
+## Setup
+
+**1. Install**
 
 ```bash
-$ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+npm install
 ```
 
-- you can then add those to the .env file
+**2. Generate secrets**
 
-- This code will then be used in encrypting data for settings or jwt token.
-
-## Compile and run the project
+Run this twice — once for your encryption key, once for your JWT secret — and add both to `.env`:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-## Migrations
-
-# To run master tenant migrations run the following
+**3. Run master migrations**
 
 ```bash
 npm run migration:run:master
 ```
 
-# To create a tenant (with running its migrations)
-
-1- Call the saas/pilot api (creates tenant database, run its migrations)
-2- then create tenant settings (tenant environment variables) via saas/environment api
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+**4. Start**
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run start:dev   # development (watch mode)
+npm run start:prod  # production
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Provisioning a tenant
 
-## Resources
+Two API calls are all it takes:
 
-Check out a few resources that may come in handy when working with NestJS:
+1. **`POST saas/pilot`** — Creates the tenant's isolated database and runs its schema migrations.
+2. **`POST saas/environment`** — Stores encrypted per-tenant environment variables (API keys, feature flags, connection secrets).
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Performance notes
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- Providers run at **default scope**, avoiding DI tree reconstruction on every request.
+- The durable provider **caches each tenant's datasource** after first init — no cold start on repeat calls.
+- Encryption key and JWT secret are loaded once at bootstrap from `.env`.
